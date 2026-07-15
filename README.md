@@ -331,5 +331,4 @@ The `/metrics` endpoint exposes a rolling window summary (default: last 500 pred
 - **Confidence calibration:** apply temperature scaling to ensure that `probability_malignant` values are well-calibrated (i.e. a 0.7 output genuinely reflects 70% probability) — important for communicating uncertainty to clinicians.
 - **Grad-CAM visualisation:** add a `/explain` endpoint that returns a heatmap showing which image regions drove the classification, increasing interpretability for clinical users.
 =======
-# Skin-Lesion-Classifier
->>>>>>> bef92bb14d91d0585a86c5bc26c763bff16e4586
+
