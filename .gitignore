@@ -1,8 +1,6 @@
 # ── Model artifacts (large binaries — never commit to git) ─────────────────
-backend/models/*.keras
 backend/models/*.h5
 backend/models/*.pb
-models/*.keras
 models/*.h5
 
 # ── Python ──────────────────────────────────────────────────────────────────
