@@ -13,6 +13,13 @@ This project trains and serves a binary image classifier that distinguishes **be
 
 The dataset is an ISIC 2019/2020-derived collection of **11,400 resized dermoscopic images** split across three folds. The overall class distribution (55% benign, 45% malignant) is mild — a 1.24:1 ratio — but was still addressed with class-weighted loss to avoid the model silently favouring the majority class.
 
+## Live Demo
+
+- **Frontend (UI):** https://skin-lesion-frontend.onrender.com
+- **Backend (API docs):** https://skin-lesion-classifier-1-nc6c.onrender.com/docs
+
+> Hosted on Render's free tier — services spin down after 15 minutes of inactivity. The first request after a period of idle time may take 30–60 seconds to respond while the container restarts.
+
 > ⚠️ **Research prototype only.** Not a certified medical device. Do not use for real diagnostic decisions. Always consult a qualified dermatologist.
 
 ---
