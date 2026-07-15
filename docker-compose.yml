@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: skin-cancer-api:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount the model file — swap without rebuilding the image.
+      - ./backend/models:/app/models:ro
+      - ./backend/logs:/app/logs
+    environment:
+      MODEL_DIR: /app/models
+      MODEL_FILENAME: Custom_CNN.keras
+      LOG_DIR: /app/logs
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      APP_ENV: production
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: "http://localhost:8000"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      backend:
+        condition: service_healthy
