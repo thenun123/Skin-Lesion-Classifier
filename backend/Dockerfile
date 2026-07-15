@@ -36,9 +36,13 @@ WORKDIR /app
 # Copy only application source — .dockerignore excludes .venv, tests, caches, etc.
 COPY src/ ./src/
 
-# models/ is normally mounted as a volume in production (see docker-compose.yml).
-# COPY models/ ./models/ is intentionally omitted — use the volume mount instead.
-RUN mkdir -p /app/models /app/logs
+# Bake the trained model into the image.
+# NOTE: Render's free Web Service tier does not support volume mounts, unlike
+# docker-compose in local/VPS setups — the model must be part of the image itself.
+# Make sure .dockerignore does NOT exclude models/ or *.keras files.
+COPY models/ ./models/
+
+RUN mkdir -p /app/logs
 
 # Run as a non-root user — security best practice for production containers.
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser

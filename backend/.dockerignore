@@ -8,5 +8,5 @@ __pycache__/
 .gitignore
 *.md
 tests/
-models/
+# models/
 logs/
