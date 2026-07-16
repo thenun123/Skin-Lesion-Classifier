@@ -19,32 +19,51 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [backendStatus, setBackendStatus] = useState('checking') // 'checking' | 'ok' | 'model_not_loaded' | 'unreachable'
+  const [wakingSince, setWakingSince] = useState(null) // timestamp when we first saw the backend as down
+  const [elapsedSec, setElapsedSec] = useState(0)
   const inputRef = useRef(null)
 
   // ── Backend health poll ────────────────────────────────────────────────────
+  // Render's free tier spins the container down after 15 min idle. The first
+  // request after that wakes it back up, which can take 30-60s. We poll
+  // frequently and track elapsed time so the UI can distinguish "still waking
+  // up" from "genuinely unreachable" instead of showing a scary error immediately.
   useEffect(() => {
     let cancelled = false
 
     const checkHealth = async () => {
       try {
-        const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(5000) })
+        const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(8000) })
         if (cancelled) return
         if (res.ok) {
           const data = await res.json()
           setBackendStatus(data.status === 'ok' ? 'ok' : 'model_not_loaded')
+          setWakingSince(null)
         } else {
           setBackendStatus('unreachable')
+          setWakingSince((prev) => prev ?? Date.now())
         }
       } catch {
-        if (!cancelled) setBackendStatus('unreachable')
+        if (cancelled) return
+        setBackendStatus('unreachable')
+        setWakingSince((prev) => prev ?? Date.now())
       }
     }
 
     checkHealth()
-    // Re-poll every 15 s while the model may still be loading
-    const interval = setInterval(checkHealth, 15_000)
+    // Poll every 4s while down/unknown so we catch the wake-up as soon as it happens
+    const interval = setInterval(checkHealth, 4_000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [])
+
+  // ── Elapsed "waking up" timer ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!wakingSince) { setElapsedSec(0); return }
+    const tick = setInterval(() => setElapsedSec(Math.round((Date.now() - wakingSince) / 1000)), 1000)
+    return () => clearInterval(tick)
+  }, [wakingSince])
+
+  const backendReady = backendStatus === 'ok'
 
   // ── File handling ──────────────────────────────────────────────────────────
   const handleFile = useCallback((file) => {
@@ -108,11 +127,17 @@ export default function App() {
         text: 'Model is loading — predictions will be available shortly.',
         cls: 'bg-amber-50 text-amber-700',
       },
-      unreachable: {
-        icon: <WifiOff size={14} />,
-        text: `Cannot reach the backend at ${API_URL}. Is the server running?`,
-        cls: 'bg-red-50 text-red-700',
-      },
+      unreachable: elapsedSec < 75
+        ? {
+          icon: <Loader2 size={14} className="animate-spin" />,
+          text: `Waking up the server — this can take up to a minute on the free tier (${elapsedSec}s)…`,
+          cls: 'bg-amber-50 text-amber-700',
+        }
+        : {
+          icon: <WifiOff size={14} />,
+          text: `Still can't reach the backend after ${elapsedSec}s. It may be down — try refreshing in a moment.`,
+          cls: 'bg-red-50 text-red-700',
+        },
     }
 
     const b = banners[backendStatus]
@@ -162,21 +187,28 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.25 }}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+              onDragOver={(e) => { if (backendReady) { e.preventDefault(); setIsDragging(true) } }}
               onDragLeave={() => setIsDragging(false)}
-              onDrop={onDrop}
-              onClick={() => inputRef.current?.click()}
-              className={`cursor-pointer rounded-2xl border-2 border-dashed p-12 flex flex-col items-center justify-center text-center transition-colors duration-200 bg-clinical-surface shadow-soft
-                ${isDragging ? 'border-clinical-teal bg-clinical-teal/5' : 'border-clinical-border hover:border-clinical-tealLight'}`}
+              onDrop={(e) => { if (backendReady) onDrop(e) }}
+              onClick={() => { if (backendReady) inputRef.current?.click() }}
+              aria-disabled={!backendReady}
+              className={`rounded-2xl border-2 border-dashed p-12 flex flex-col items-center justify-center text-center transition-colors duration-200 bg-clinical-surface shadow-soft
+                ${!backendReady ? 'cursor-not-allowed opacity-60 border-clinical-border' : 'cursor-pointer'}
+                ${isDragging && backendReady ? 'border-clinical-teal bg-clinical-teal/5' : 'border-clinical-border hover:border-clinical-tealLight'}`}
             >
               <UploadCloud size={36} className="text-clinical-teal mb-4" strokeWidth={1.5} />
-              <p className="font-medium text-clinical-text">Drag &amp; drop an image here</p>
-              <p className="text-sm text-clinical-textMuted mt-1">or click to browse (JPEG/PNG)</p>
+              <p className="font-medium text-clinical-text">
+                {backendReady ? 'Drag & drop an image here' : 'Waiting for the server to be ready…'}
+              </p>
+              <p className="text-sm text-clinical-textMuted mt-1">
+                {backendReady ? 'or click to browse (JPEG/PNG)' : 'Upload will unlock automatically'}
+              </p>
               <input
                 ref={inputRef}
                 type="file"
                 accept="image/jpeg,image/png"
                 className="hidden"
+                disabled={!backendReady}
                 onChange={(e) => handleFile(e.target.files?.[0])}
               />
             </motion.div>
